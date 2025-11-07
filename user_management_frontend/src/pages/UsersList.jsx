@@ -6,6 +6,7 @@ import Modal from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import '../components/ui/ui.css';
 import useUsers from '../hooks/useUsers';
+import { getFeatureFlag } from '../utils/config';
 
 /**
  * PUBLIC_INTERFACE
@@ -27,6 +28,10 @@ export default function UsersList() {
   const pageSize = 10;
 
   const { users, list, remove, loading, error } = useUsers();
+
+  // Feature flag: enable bulk actions from REACT_APP_FEATURE_FLAGS (default false)
+  const enableBulkActions = Boolean(getFeatureFlag('enableBulkActions', false));
+  const [selectedIds, setSelectedIds] = useState([]);
 
   useEffect(() => {
     // Load users on mount (will use backend if configured or fallback demo)
@@ -79,6 +84,40 @@ export default function UsersList() {
 
   // Table columns with accessible sortable headers for Name and Created
   const columns = [
+    ...(enableBulkActions
+      ? [{
+          key: '__sel__',
+          header: (
+            <input
+              type="checkbox"
+              aria-label="Select all users on this page"
+              checked={selectedIds.length > 0 && paged.every(u => selectedIds.includes(u.id))}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const ids = Array.from(new Set([...selectedIds, ...paged.map(u => u.id)]));
+                  setSelectedIds(ids);
+                } else {
+                  const ids = selectedIds.filter(id => !paged.some(u => u.id === id));
+                  setSelectedIds(ids);
+                }
+              }}
+            />
+          ),
+          render: (row) => (
+            <input
+              type="checkbox"
+              aria-label={`Select ${row.name}`}
+              checked={selectedIds.includes(row.id)}
+              onChange={(e) => {
+                setSelectedIds((prev) => {
+                  if (e.target.checked) return Array.from(new Set([...prev, row.id]));
+                  return prev.filter((id) => id !== row.id);
+                });
+              }}
+            />
+          )
+        }]
+      : []),
     {
       key: 'name',
       header: (
@@ -152,7 +191,16 @@ export default function UsersList() {
   const onConfirmDelete = async () => {
     setConfirmOpen(false);
     if (selectedUser) {
-      await remove(selectedUser.id);
+      // Bulk delete if synthetic multiple selection was set
+      if (enableBulkActions && selectedUser.id.includes(',')) {
+        const ids = selectedIds.slice();
+        for (const id of ids) {
+          await remove(id);
+        }
+        setSelectedIds([]);
+      } else {
+        await remove(selectedUser.id);
+      }
       setSelectedUser(null);
       // If delete empties the page, go to previous page if possible
       setPage((p) => Math.max(1, Math.min(p, Math.ceil((total - 1) / pageSize) || 1)));
@@ -212,6 +260,48 @@ export default function UsersList() {
         </div>
       )}
 
+      {/* Bulk actions toolbar */}
+      {enableBulkActions && selectedIds.length > 0 && (
+        <div
+          role="region"
+          aria-label="Bulk actions"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 8,
+            background: 'var(--color-surface)',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
+          <div style={{ color: 'rgba(17,24,39,0.8)' }}>
+            {selectedIds.length} selected
+          </div>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setConfirmOpen(true);
+              // For bulk delete we set a synthetic selectedUser to indicate multiple
+              setSelectedUser({ id: selectedIds.join(','), name: `${selectedIds.length} users` });
+            }}
+            ariaLabel="Delete selected users"
+          >
+            Delete selected
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds([])}
+            ariaLabel="Clear selection"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
       <Table
         caption="Manage application users"
         columns={columns}
@@ -263,7 +353,9 @@ export default function UsersList() {
         }
       >
         <p>
-          Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.
+          {enableBulkActions && selectedUser?.id?.includes(',')
+            ? <>Are you sure you want to delete <strong>{selectedUser?.name}</strong>? This action cannot be undone.</>
+            : <>Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.</>}
         </p>
         {error.remove && <div role="alert" style={{ color: 'var(--color-error)', marginTop: 8 }}>{error.remove}</div>}
       </Modal>

@@ -11,13 +11,12 @@
 //   const data = await apiClient.get('/users');
 //
 
+import { getApiBase } from '../utils/config';
+
 const DEFAULT_TIMEOUT_MS = 10000;
 
-// Resolve base URL from environment
-const baseURL =
-  process.env.REACT_APP_API_BASE?.trim() ||
-  process.env.REACT_APP_BACKEND_URL?.trim() ||
-  '';
+// Resolve base URL from centralized config
+const baseURL = getApiBase() || '';
 
 function buildURL(path) {
   if (!path) return baseURL;
