@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Table from '../components/ui/Table';
 import Button from '../components/ui/Button';
@@ -10,6 +10,7 @@ import useUsers from '../hooks/useUsers';
 /**
  * PUBLIC_INTERFACE
  * Users list page showing a table of users with action buttons.
+ * Adds client-side search (name/email), sortable headers (name, createdAt), and pagination (10/page).
  * Uses global state via useUsers hook with loading and error feedback.
  */
 export default function UsersList() {
@@ -18,17 +19,112 @@ export default function UsersList() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
+  // Controls: search, sort, pagination
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('name'); // 'name' | 'createdAt'
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
   const { users, list, remove, loading, error } = useUsers();
 
   useEffect(() => {
-    // Load users on mount
+    // Load users on mount (will use backend if configured or fallback demo)
     list();
   }, [list]);
 
+  // When search or sort changes, reset to first page for better UX.
+  useEffect(() => {
+    setPage(1);
+  }, [search, sortBy, sortDir]);
+
+  // Derived data: apply search filtering, sorting, then pagination
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) => {
+      const name = String(u.name || '').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [users, search]);
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    copy.sort((a, b) => {
+      if (sortBy === 'createdAt') {
+        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return (da - db) * dir;
+      }
+      // default name sort (case-insensitive)
+      const na = String(a.name || '').toLowerCase();
+      const nb = String(b.name || '').toLowerCase();
+      if (na < nb) return -1 * dir;
+      if (na > nb) return 1 * dir;
+      return 0;
+    });
+    return copy;
+  }, [filtered, sortBy, sortDir]);
+
+  const total = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const paged = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sorted.slice(start, start + pageSize);
+  }, [sorted, currentPage]);
+
+  // Table columns with accessible sortable headers for Name and Created
   const columns = [
-    { key: 'name', header: 'Name' },
-    { key: 'email', header: 'Email' },
-    { key: 'role', header: 'Role' }
+    {
+      key: 'name',
+      header: (
+        <button
+          type="button"
+          className="ui-btn ui-btn--ghost ui-btn--sm"
+          onClick={() => {
+            if (sortBy === 'name') setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+            else {
+              setSortBy('name');
+              setSortDir('asc');
+            }
+          }}
+          aria-label={`Sort by name, current ${sortBy === 'name' ? sortDir : 'none'}`}
+          aria-sort={sortBy === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+          style={{ padding: 6 }}
+        >
+          Name {sortBy === 'name' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+        </button>
+      ),
+      render: (row) => row.name
+    },
+    { key: 'email', header: 'Email', render: (row) => row.email },
+    { key: 'role', header: 'Role', render: (row) => row.role || '—' },
+    {
+      key: 'createdAt',
+      header: (
+        <button
+          type="button"
+          className="ui-btn ui-btn--ghost ui-btn--sm"
+          onClick={() => {
+            if (sortBy === 'createdAt') setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+            else {
+              setSortBy('createdAt');
+              setSortDir('desc');
+            }
+          }}
+          aria-label={`Sort by created date, current ${sortBy === 'createdAt' ? sortDir : 'none'}`}
+          aria-sort={sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+          style={{ padding: 6 }}
+        >
+          Created {sortBy === 'createdAt' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+        </button>
+      ),
+      render: (row) => (row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '—')
+    }
   ];
 
   const actions = (row) => (
@@ -39,7 +135,15 @@ export default function UsersList() {
       <Button variant="ghost" size="sm" ariaLabel={`Edit ${row.name}`} onClick={() => navigate(`/users/${row.id}/edit`)}>
         Edit
       </Button>
-      <Button variant="danger" size="sm" ariaLabel={`Delete ${row.name}`} onClick={() => { setSelectedUser(row); setConfirmOpen(true); }}>
+      <Button
+        variant="danger"
+        size="sm"
+        ariaLabel={`Delete ${row.name}`}
+        onClick={() => {
+          setSelectedUser(row);
+          setConfirmOpen(true);
+        }}
+      >
         Delete
       </Button>
     </div>
@@ -50,14 +154,51 @@ export default function UsersList() {
     if (selectedUser) {
       await remove(selectedUser.id);
       setSelectedUser(null);
+      // If delete empties the page, go to previous page if possible
+      setPage((p) => Math.max(1, Math.min(p, Math.ceil((total - 1) / pageSize) || 1)));
     }
   };
+
+  const onPrev = () => setPage((p) => Math.max(1, p - 1));
+  const onNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const onFirst = () => setPage(1);
+  const onLast = () => setPage(totalPages);
 
   return (
     <section aria-labelledby="users-title">
       <div className="page-header">
         <h1 id="users-title">Users</h1>
-        <Link className="ui-btn ui-btn--primary ui-btn--md" to="/users/new" aria-label="Create a new user">+ New User</Link>
+        <Link className="ui-btn ui-btn--primary ui-btn--md" to="/users/new" aria-label="Create a new user">
+          + New User
+        </Link>
+      </div>
+
+      {/* Controls row: search + results info */}
+      <div
+        className="controls"
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          marginBottom: 12,
+          flexWrap: 'wrap'
+        }}
+      >
+        <div style={{ flex: '1 1 280px', minWidth: 240 }}>
+          <label className="ui-label" htmlFor="user-search">Search</label>
+          <input
+            id="user-search"
+            type="search"
+            className="ui-input"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search users by name or email"
+          />
+        </div>
+        <div aria-live="polite" style={{ color: 'rgba(17,24,39,0.7)' }}>
+          {total} result{total !== 1 ? 's' : ''}{search ? ' (filtered)' : ''}
+        </div>
       </div>
 
       {loading.list && (
@@ -74,10 +215,41 @@ export default function UsersList() {
       <Table
         caption="Manage application users"
         columns={columns}
-        data={users}
+        data={paged}
         rowKey="id"
         actions={actions}
       />
+
+      {/* Pagination controls */}
+      <nav
+        aria-label="Pagination"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 12,
+          justifyContent: 'space-between',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div style={{ color: 'rgba(17,24,39,0.7)' }}>
+          Page {currentPage} of {totalPages}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button variant="ghost" size="sm" onClick={onFirst} disabled={currentPage <= 1} aria-label="First page">
+            «
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onPrev} disabled={currentPage <= 1} aria-label="Previous page">
+            ‹
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onNext} disabled={currentPage >= totalPages} aria-label="Next page">
+            ›
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onLast} disabled={currentPage >= totalPages} aria-label="Last page">
+            »
+          </Button>
+        </div>
+      </nav>
 
       <Modal
         open={confirmOpen}
@@ -90,7 +262,9 @@ export default function UsersList() {
           </>
         }
       >
-        <p>Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.</p>
+        <p>
+          Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.
+        </p>
         {error.remove && <div role="alert" style={{ color: 'var(--color-error)', marginTop: 8 }}>{error.remove}</div>}
       </Modal>
     </section>
