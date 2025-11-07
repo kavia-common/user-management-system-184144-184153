@@ -9,6 +9,7 @@ import UserNew from './pages/UserNew';
 import UserDetail from './pages/UserDetail';
 import UserEdit from './pages/UserEdit';
 import NotFound from './pages/NotFound';
+import { ToastProvider } from './components/ui/Toast';
 
 // Define routes
 const router = createBrowserRouter([
@@ -30,6 +31,8 @@ const router = createBrowserRouter([
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ToastProvider>
+      <RouterProvider router={router} />
+    </ToastProvider>
   </React.StrictMode>
 );

@@ -1,6 +1,7 @@
 import React from 'react';
 import './theme.css';
 import './App.css';
+import './components/ui/ui.css';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import { Outlet } from 'react-router-dom';
