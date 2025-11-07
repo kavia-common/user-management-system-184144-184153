@@ -4,6 +4,7 @@ import Table from '../components/ui/Table';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
+import AlertBanner from '../components/ui/AlertBanner';
 import '../components/ui/ui.css';
 import useUsers from '../hooks/useUsers';
 import { getFeatureFlag } from '../utils/config';
@@ -28,6 +29,8 @@ export default function UsersList() {
   const pageSize = 10;
 
   const { users, list, remove, loading, error } = useUsers();
+  const titleRef = React.useRef(null);
+  const newBtnRef = React.useRef(null);
 
   // Feature flag: enable bulk actions from REACT_APP_FEATURE_FLAGS (default false)
   const enableBulkActions = Boolean(getFeatureFlag('enableBulkActions', false));
@@ -204,6 +207,14 @@ export default function UsersList() {
       setSelectedUser(null);
       // If delete empties the page, go to previous page if possible
       setPage((p) => Math.max(1, Math.min(p, Math.ceil((total - 1) / pageSize) || 1)));
+      // Manage focus after mutation for better accessibility
+      setTimeout(() => {
+        if (newBtnRef.current) {
+          newBtnRef.current.focus();
+        } else if (titleRef.current) {
+          titleRef.current.focus();
+        }
+      }, 0);
     }
   };
 
@@ -215,8 +226,13 @@ export default function UsersList() {
   return (
     <section aria-labelledby="users-title">
       <div className="page-header">
-        <h1 id="users-title">Users</h1>
-        <Link className="ui-btn ui-btn--primary ui-btn--md" to="/users/new" aria-label="Create a new user">
+        <h1 id="users-title" tabIndex={-1} ref={titleRef}>Users</h1>
+        <Link
+          ref={newBtnRef}
+          className="ui-btn ui-btn--primary ui-btn--md"
+          to="/users/new"
+          aria-label="Create a new user"
+        >
           + New User
         </Link>
       </div>
@@ -255,9 +271,11 @@ export default function UsersList() {
         </div>
       )}
       {error.list && (
-        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
-          {error.list}
-        </div>
+        <AlertBanner
+          variant="error"
+          title="Failed to load users"
+          description={error.list}
+        />
       )}
 
       {/* Bulk actions toolbar */}
@@ -302,13 +320,32 @@ export default function UsersList() {
         </div>
       )}
 
-      <Table
-        caption="Manage application users"
-        columns={columns}
-        data={paged}
-        rowKey="id"
-        actions={actions}
-      />
+      {sorted.length === 0 && !loading.list ? (
+        <div className="ui-empty" role="region" aria-label="Empty users">
+          <div className="ui-empty__icon" aria-hidden="true">👥</div>
+          <h2 className="ui-empty__title">No users found</h2>
+          <p className="ui-empty__desc">
+            {search
+              ? 'No users match your search. Try adjusting the filters.'
+              : 'Get started by creating your first user.'}
+          </p>
+          <Link
+            className="ui-btn ui-btn--primary ui-btn--md"
+            to="/users/new"
+            aria-label="Create your first user"
+          >
+            + Create user
+          </Link>
+        </div>
+      ) : (
+        <Table
+          caption="Manage application users"
+          columns={columns}
+          data={paged}
+          rowKey="id"
+          actions={actions}
+        />
+      )}
 
       {/* Pagination controls */}
       <nav
@@ -357,7 +394,13 @@ export default function UsersList() {
             ? <>Are you sure you want to delete <strong>{selectedUser?.name}</strong>? This action cannot be undone.</>
             : <>Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.</>}
         </p>
-        {error.remove && <div role="alert" style={{ color: 'var(--color-error)', marginTop: 8 }}>{error.remove}</div>}
+        {error.remove && (
+          <AlertBanner
+            variant="error"
+            title="Delete failed"
+            description={error.remove}
+          />
+        )}
       </Modal>
     </section>
   );

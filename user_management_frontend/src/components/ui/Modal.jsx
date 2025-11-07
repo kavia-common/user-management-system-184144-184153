@@ -17,29 +17,40 @@ import Button from './Button';
  * - footer: node (optional)
  */
 export default function Modal({ open, title, onClose, children, footer }) {
-  const firstFocusableRef = useRef(null);
+  const openerRef = useRef(null); // element that was focused before opening
   const modalRef = useRef(null);
-  const lastFocusableRef = useRef(null);
 
+  // Capture the element with focus before opening and restore after close
+  useEffect(() => {
+    if (open) {
+      openerRef.current = document.activeElement;
+      // Focus first focusable element or dialog container
+      const focusables = modalRef.current?.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables && focusables.length) {
+        const el = focusables[0];
+        el && typeof el.focus === 'function' && el.focus();
+      } else {
+        modalRef.current?.focus();
+      }
+    } else if (!open && openerRef.current) {
+      // Restore focus to invoking element
+      const el = openerRef.current;
+      if (el && typeof el.focus === 'function') {
+        el.focus();
+      }
+    }
+  }, [open]);
+
+  // Key handling for Esc and focus trap
   useEffect(() => {
     if (!open) return;
-    const focusable = modalRef.current?.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable && focusable.length) {
-      firstFocusableRef.current = focusable[0];
-      lastFocusableRef.current = focusable[focusable.length - 1];
-      firstFocusableRef.current.focus();
-    } else {
-      modalRef.current?.focus();
-    }
-
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
         onClose?.();
       } else if (e.key === 'Tab') {
-        // Focus trap
         const focusables = modalRef.current?.querySelectorAll(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
@@ -61,14 +72,20 @@ export default function Modal({ open, title, onClose, children, footer }) {
 
   if (!open) return null;
 
-  const onBackdropClick = (e) => {
+  const onBackdropMouseDown = (e) => {
     if (e.target.getAttribute('data-backdrop') === 'true') {
       onClose?.();
     }
   };
 
   return (
-    <div className="ui-modal-backdrop" data-backdrop="true" onMouseDown={onBackdropClick}>
+    <div
+      className="ui-modal-backdrop"
+      data-backdrop="true"
+      onMouseDown={onBackdropMouseDown}
+      role="presentation"
+      aria-hidden="false"
+    >
       <div
         className="ui-modal"
         role="dialog"

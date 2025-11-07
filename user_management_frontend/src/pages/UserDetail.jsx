@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
+import AlertBanner from '../components/ui/AlertBanner';
 import useUsers from '../hooks/useUsers';
 
 /**
@@ -15,6 +16,7 @@ export default function UserDetail() {
 
   const user = byId[id];
   const safeUser = useMemo(() => user || { id, name: '', email: '', role: '', bio: '' }, [user, id]);
+  const titleRef = React.useRef(null);
 
   useEffect(() => {
     if (!user) getById(id);
@@ -32,7 +34,7 @@ export default function UserDetail() {
   return (
     <section aria-labelledby="user-detail-title">
       <div className="page-header">
-        <h1 id="user-detail-title">User Detail</h1>
+        <h1 id="user-detail-title" tabIndex={-1} ref={titleRef}>User Detail</h1>
         <Link className="ui-btn ui-btn--primary ui-btn--md" to={`/users/${id}/edit`} aria-label="Edit user">Edit</Link>
       </div>
       {loading.detail && (
@@ -41,9 +43,11 @@ export default function UserDetail() {
         </div>
       )}
       {error.detail && (
-        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
-          {error.detail}
-        </div>
+        <AlertBanner
+          variant="error"
+          title="Failed to load user"
+          description={error.detail}
+        />
       )}
       <div style={{ background: 'var(--color-surface)', borderRadius: '12px', padding: '16px', boxShadow: 'var(--shadow-sm)' }}>
         <p><strong>ID:</strong> {safeUser.id}</p>

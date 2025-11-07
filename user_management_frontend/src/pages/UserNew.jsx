@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import FormField from '../components/ui/FormField';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
+import AlertBanner from '../components/ui/AlertBanner';
 import '../components/ui/ui.css';
 import useUsers from '../hooks/useUsers';
 
@@ -13,6 +14,7 @@ import useUsers from '../hooks/useUsers';
 export default function UserNew() {
   const toast = useToast();
   const { create, loading, error } = useUsers();
+  const titleRef = React.useRef(null);
   const [values, setValues] = useState({ name: '', email: '', role: 'viewer', bio: '' });
   const [errors, setErrors] = useState({});
 
@@ -34,6 +36,7 @@ export default function UserNew() {
     const result = await create(values);
     if (result) {
       setValues({ name: '', email: '', role: 'viewer', bio: '' });
+      setTimeout(() => titleRef.current?.focus(), 0);
     } else if (error.create) {
       toast.show({ title: 'Create failed', description: error.create, variant: 'error' });
     }
@@ -41,16 +44,18 @@ export default function UserNew() {
 
   return (
     <section aria-labelledby="new-user-title">
-      <h1 id="new-user-title">Create User</h1>
+      <h1 id="new-user-title" tabIndex={-1} ref={titleRef}>Create User</h1>
       {loading.create && (
         <div role="status" aria-live="polite" style={{ marginBottom: 12, color: 'rgba(17,24,39,0.7)' }}>
           Creating user…
         </div>
       )}
       {error.create && (
-        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
-          {error.create}
-        </div>
+        <AlertBanner
+          variant="error"
+          title="Failed to create user"
+          description={error.create}
+        />
       )}
       <form className="ui-form" onSubmit={onSubmit} noValidate>
         <FormField

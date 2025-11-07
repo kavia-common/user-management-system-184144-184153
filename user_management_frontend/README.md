@@ -53,6 +53,11 @@ Common components include:
 - Navigation (`.navbar`)
 - Typography (`.title`, `.subtitle`, `.description`)
 
+Additional UI components:
+- Accessible Modal (`src/components/ui/Modal.jsx`) with focus trap and return focus
+- AlertBanner (`src/components/ui/AlertBanner.jsx`) for consistent error/status banners
+- Empty state pattern (classes `.ui-empty*`) for pages with no data
+
 ## Learn More
 
 To learn React, check out the [React documentation](https://reactjs.org/).

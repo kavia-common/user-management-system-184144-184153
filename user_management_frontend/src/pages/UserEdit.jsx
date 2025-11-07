@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import FormField from '../components/ui/FormField';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
+import AlertBanner from '../components/ui/AlertBanner';
 import useUsers from '../hooks/useUsers';
 
 /**
@@ -15,6 +16,7 @@ export default function UserEdit() {
   const { getById, update, byId, loading, error } = useUsers();
 
   const existing = byId[id];
+  const titleRef = React.useRef(null);
   const initial = useMemo(() => existing || { id, name: '', email: '', role: 'viewer', bio: '' }, [existing, id]);
 
   const [values, setValues] = useState(initial);
@@ -46,21 +48,25 @@ export default function UserEdit() {
     const result = await update(id, values);
     if (!result && error.update) {
       toast.show({ title: 'Update failed', description: error.update, variant: 'error' });
+    } else if (result) {
+      setTimeout(() => titleRef.current?.focus(), 0);
     }
   };
 
   return (
     <section aria-labelledby="user-edit-title">
-      <h1 id="user-edit-title">Edit User</h1>
+      <h1 id="user-edit-title" tabIndex={-1} ref={titleRef}>Edit User</h1>
       {loading.detail && (
         <div role="status" aria-live="polite" style={{ marginBottom: 12, color: 'rgba(17,24,39,0.7)' }}>
           Loading user…
         </div>
       )}
       {error.detail && (
-        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
-          {error.detail}
-        </div>
+        <AlertBanner
+          variant="error"
+          title="Failed to load user"
+          description={error.detail}
+        />
       )}
       <form className="ui-form" onSubmit={onSubmit} noValidate>
         <FormField
@@ -105,7 +111,13 @@ export default function UserEdit() {
           <Button type="submit" variant="primary" disabled={loading.update}>Save changes</Button>
           <Button type="button" variant="ghost" onClick={() => setValues(initial)}>Revert</Button>
         </div>
-        {error.update && <div role="alert" style={{ marginTop: 12, color: 'var(--color-error)' }}>{error.update}</div>}
+        {error.update && (
+          <AlertBanner
+            variant="error"
+            title="Failed to update user"
+            description={error.update}
+          />
+        )}
       </form>
     </section>
   );
