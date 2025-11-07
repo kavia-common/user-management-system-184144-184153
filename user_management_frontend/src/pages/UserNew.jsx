@@ -3,14 +3,16 @@ import FormField from '../components/ui/FormField';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
 import '../components/ui/ui.css';
+import useUsers from '../hooks/useUsers';
 
 /**
  * PUBLIC_INTERFACE
- * Create user page with accessible form fields.
- * Note: Submission is local-only; API wiring will be added later.
+ * Create user page with accessible form fields using global users state via useUsers.
+ * Shows loading and error messages with proper ARIA roles.
  */
 export default function UserNew() {
   const toast = useToast();
+  const { create, loading, error } = useUsers();
   const [values, setValues] = useState({ name: '', email: '', role: 'viewer', bio: '' });
   const [errors, setErrors] = useState({});
 
@@ -24,19 +26,32 @@ export default function UserNew() {
     return e;
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     const eMap = validate();
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
-    toast.show({ title: 'User created', description: `${values.name} has been created (demo)`, variant: 'success' });
-    // Reset demo
-    setValues({ name: '', email: '', role: 'viewer', bio: '' });
+    const result = await create(values);
+    if (result) {
+      setValues({ name: '', email: '', role: 'viewer', bio: '' });
+    } else if (error.create) {
+      toast.show({ title: 'Create failed', description: error.create, variant: 'error' });
+    }
   };
 
   return (
     <section aria-labelledby="new-user-title">
       <h1 id="new-user-title">Create User</h1>
+      {loading.create && (
+        <div role="status" aria-live="polite" style={{ marginBottom: 12, color: 'rgba(17,24,39,0.7)' }}>
+          Creating user…
+        </div>
+      )}
+      {error.create && (
+        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
+          {error.create}
+        </div>
+      )}
       <form className="ui-form" onSubmit={onSubmit} noValidate>
         <FormField
           id="name"
@@ -79,7 +94,7 @@ export default function UserNew() {
           hint="Optional short description."
         />
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button type="submit" variant="primary">Create</Button>
+          <Button type="submit" variant="primary" disabled={loading.create}>Create</Button>
           <Button type="reset" variant="ghost" onClick={() => setValues({ name: '', email: '', role: 'viewer', bio: '' })}>Reset</Button>
         </div>
       </form>

@@ -1,29 +1,32 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import FormField from '../components/ui/FormField';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
+import useUsers from '../hooks/useUsers';
 
 /**
  * PUBLIC_INTERFACE
- * Edit user page with accessible form fields.
- * Note: Data loading and persistence will be integrated later; pre-fills with demo data.
+ * Edit user page with accessible form fields, wired to global users state.
  */
 export default function UserEdit() {
   const { id } = useParams();
   const toast = useToast();
+  const { getById, update, byId, loading, error } = useUsers();
 
-  // Demo prefill data
-  const initial = useMemo(() => ({
-    id,
-    name: 'Demo User',
-    email: 'demo@example.com',
-    role: 'editor',
-    bio: 'This is a demo user used for editing preview.'
-  }), [id]);
+  const existing = byId[id];
+  const initial = useMemo(() => existing || { id, name: '', email: '', role: 'viewer', bio: '' }, [existing, id]);
 
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (!existing) {
+      getById(id);
+    } else {
+      setValues(existing);
+    }
+  }, [existing, id, getById]);
 
   const setValue = (field) => (e) => setValues((v) => ({ ...v, [field]: e.target.value }));
 
@@ -35,17 +38,30 @@ export default function UserEdit() {
     return e;
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     const eMap = validate();
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
-    toast.show({ title: 'User updated', description: `${values.name} has been saved (demo)`, variant: 'success' });
+    const result = await update(id, values);
+    if (!result && error.update) {
+      toast.show({ title: 'Update failed', description: error.update, variant: 'error' });
+    }
   };
 
   return (
     <section aria-labelledby="user-edit-title">
       <h1 id="user-edit-title">Edit User</h1>
+      {loading.detail && (
+        <div role="status" aria-live="polite" style={{ marginBottom: 12, color: 'rgba(17,24,39,0.7)' }}>
+          Loading user…
+        </div>
+      )}
+      {error.detail && (
+        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
+          {error.detail}
+        </div>
+      )}
       <form className="ui-form" onSubmit={onSubmit} noValidate>
         <FormField
           id="name"
@@ -86,9 +102,10 @@ export default function UserEdit() {
           onChange={setValue('bio')}
         />
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button type="submit" variant="primary">Save changes</Button>
+          <Button type="submit" variant="primary" disabled={loading.update}>Save changes</Button>
           <Button type="button" variant="ghost" onClick={() => setValues(initial)}>Revert</Button>
         </div>
+        {error.update && <div role="alert" style={{ marginTop: 12, color: 'var(--color-error)' }}>{error.update}</div>}
       </form>
     </section>
   );

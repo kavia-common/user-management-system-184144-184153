@@ -10,6 +10,7 @@ import UserDetail from './pages/UserDetail';
 import UserEdit from './pages/UserEdit';
 import NotFound from './pages/NotFound';
 import { ToastProvider } from './components/ui/Toast';
+import { AppProvider } from './state/store';
 
 // Define routes
 const router = createBrowserRouter([
@@ -32,7 +33,9 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <ToastProvider>
-      <RouterProvider router={router} />
+      <AppProvider>
+        <RouterProvider router={router} />
+      </AppProvider>
     </ToastProvider>
   </React.StrictMode>
 );

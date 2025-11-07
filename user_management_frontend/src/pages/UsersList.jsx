@@ -1,15 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Table from '../components/ui/Table';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import '../components/ui/ui.css';
+import useUsers from '../hooks/useUsers';
 
 /**
  * PUBLIC_INTERFACE
  * Users list page showing a table of users with action buttons.
- * Note: Data fetching will be wired later; uses static sample data for now.
+ * Uses global state via useUsers hook with loading and error feedback.
  */
 export default function UsersList() {
   const navigate = useNavigate();
@@ -17,14 +18,12 @@ export default function UsersList() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const users = useMemo(
-    () => [
-      { id: 'u_1001', name: 'Alice Johnson', email: 'alice@example.com', role: 'Admin' },
-      { id: 'u_1002', name: 'Bob Smith', email: 'bob@example.com', role: 'Editor' },
-      { id: 'u_1003', name: 'Charlie Davis', email: 'charlie@example.com', role: 'Viewer' }
-    ],
-    []
-  );
+  const { users, list, remove, loading, error } = useUsers();
+
+  useEffect(() => {
+    // Load users on mount
+    list();
+  }, [list]);
 
   const columns = [
     { key: 'name', header: 'Name' },
@@ -46,10 +45,12 @@ export default function UsersList() {
     </div>
   );
 
-  const onConfirmDelete = () => {
+  const onConfirmDelete = async () => {
     setConfirmOpen(false);
-    toast.show({ title: 'Deleted', description: `User ${selectedUser?.name} deleted (demo)`, variant: 'success' });
-    setSelectedUser(null);
+    if (selectedUser) {
+      await remove(selectedUser.id);
+      setSelectedUser(null);
+    }
   };
 
   return (
@@ -58,6 +59,17 @@ export default function UsersList() {
         <h1 id="users-title">Users</h1>
         <Link className="ui-btn ui-btn--primary ui-btn--md" to="/users/new" aria-label="Create a new user">+ New User</Link>
       </div>
+
+      {loading.list && (
+        <div role="status" aria-live="polite" style={{ marginBottom: 12, color: 'rgba(17,24,39,0.7)' }}>
+          Loading users…
+        </div>
+      )}
+      {error.list && (
+        <div role="alert" style={{ marginBottom: 12, color: 'var(--color-error)' }}>
+          {error.list}
+        </div>
+      )}
 
       <Table
         caption="Manage application users"
@@ -74,11 +86,12 @@ export default function UsersList() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-            <Button variant="danger" onClick={onConfirmDelete}>Delete</Button>
+            <Button variant="danger" onClick={onConfirmDelete} disabled={loading.remove}>Delete</Button>
           </>
         }
       >
         <p>Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.</p>
+        {error.remove && <div role="alert" style={{ color: 'var(--color-error)', marginTop: 8 }}>{error.remove}</div>}
       </Modal>
     </section>
   );
